@@ -3,7 +3,7 @@
     "version": "0.2.0",
     "author": "Michael Hanus <mh@informatik.uni-kiel.de>",
     "synopsis": "A transformation tool to replace Boolean equalities by equational constraints",
-    "category": [ "Analysis" ],
+    "category": [ "Analysis", "Optimization" ],
     "dependencies": {
         "cass-analysis": ">= 0.0.1",
         "cass"         : ">= 0.0.1"
