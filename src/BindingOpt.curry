@@ -8,15 +8,17 @@
 
 module BindingOpt (main, transformFlatProg) where
 
-import Directory         ( renameFile )
-import Distribution      ( installDir, curryCompiler, currySubdir
-                         , addCurrySubdir, splitModuleFileName
-                         )
-import FileGoodies
-import FilePath          ( (</>), (<.>), normalise, pathSeparator )
-import List
-import Maybe             (fromJust)
-import System            ( getArgs,system,exitWith,getCPUTime )
+import System.Directory   ( renameFile )
+import System.FilePath    ( (</>), (<.>), normalise, pathSeparator
+                          , takeExtension, dropExtension )
+import Data.List
+import Data.Maybe         (fromJust)
+import System.Process     ( system, exitWith )
+import System.Environment ( getArgs )
+import System.CPUTime     ( getCPUTime )
+import Distribution       ( installDir, curryCompiler, currySubdir
+                          , addCurrySubdir, splitModuleFileName )
+
 import FlatCurry.Types hiding  (Cons)
 import FlatCurry.Files
 import FlatCurry.Goodies
@@ -92,9 +94,9 @@ printVerbose verbosity printlevel message =
 
 transformBoolEq :: Options -> String -> IO ()
 transformBoolEq opts@(verb, _, _) name = do
-  let isfcyname = fileSuffix name == "fcy"
+  let isfcyname = takeExtension name == "fcy"
       modname   = if isfcyname
-                  then modNameOfFcyName (normalise (stripSuffix name))
+                  then modNameOfFcyName (normalise (dropExtension name))
                   else name
   printVerbose verb 1 $ "Reading and analyzing module '" ++ modname ++ "'..."
   flatprog <- if isfcyname then readFlatCurryFile name
@@ -109,11 +111,11 @@ dropSuffix sfx s | sfx `isSuffixOf` s = take (length s - length sfx) s
 -- Extracts the module name from a given FlatCurry file name:
 modNameOfFcyName :: String -> String
 modNameOfFcyName name =
-  let wosuffix = normalise (stripSuffix name)
+  let wosuffix = normalise (dropExtension name)
       [dir,wosubdir] = splitOn (currySubdir ++ [pathSeparator]) wosuffix
    in -- construct hierarchical module name:
       dir </> intercalate "." (split (==pathSeparator) wosubdir)
-   
+
 transformAndStoreFlatProg :: Options -> String -> Prog -> IO ()
 transformAndStoreFlatProg opts@(verb, _, load) modname prog = do
   let (dir, name) = splitModuleFileName (progName prog) modname
@@ -160,7 +162,7 @@ transformFlatProg (verb, withanalysis, _) modname
     putStrLn ("Detailed statistics written to '" ++ csvfname ++"'")
   return (Prog mname imports tdecls newfdecls opdecls, numtrans > 0)
 
-loadAnalysisWithImports :: Analysis a -> String -> [String]
+loadAnalysisWithImports :: (Show a, Read a) => Analysis a -> String -> [String]
                         -> IO (ProgInfo a,ProgInfo a)
 loadAnalysisWithImports analysis modname imports = do
   maininfo <- analyzeGeneric analysis modname >>= return . either id error
