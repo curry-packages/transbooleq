@@ -4,6 +4,8 @@
     "author": "Michael Hanus <mh@informatik.uni-kiel.de>",
     "synopsis": "A transformation tool to replace Boolean equalities by equational constraints",
     "category": [ "Analysis", "Optimization" ],
+    "license": "BSD-3-Clause",
+    "licenseFile": "LICENSE",
     "dependencies": {
         "base"         : ">= 1.0.0, < 2.0.0",
         "cass-analysis": ">= 2.0.0",

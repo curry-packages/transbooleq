@@ -3,7 +3,7 @@
 --- by equational constraints (which binds variables).
 ---
 --- @author Michael Hanus
---- @version August 2018
+--- @version April 2019
 -------------------------------------------------------------------------
 
 module BindingOpt (main, transformFlatProg) where
