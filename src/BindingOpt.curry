@@ -93,7 +93,7 @@ printVerbose verbosity printlevel message =
 transformBoolEq :: Options -> String -> IO ()
 transformBoolEq opts@(verb, _, _) name = do
   let isfcyname = fileSuffix name == "fcy"
-  (dir,modname) <- 
+  (moddir,modname) <- 
          if isfcyname
            then return $ modNameOfFcyName (normalise (stripSuffix name))
            else lookupModuleSourceInLoadPath name >>=
@@ -103,7 +103,7 @@ transformBoolEq opts@(verb, _, _) name = do
   printVerbose verb 1 $ "Reading and analyzing module '" ++ modname ++ "'..."
   flatprog <- if isfcyname then readFlatCurryFile name
                            else readFlatCurry     modname
-  transformAndStoreFlatProg opts dir modname flatprog
+  transformAndStoreFlatProg opts moddir modname flatprog
 
 -- Drop a suffix from a list if present or leave the list as is otherwise.
 dropSuffix :: Eq a => [a] -> [a] -> [a]
