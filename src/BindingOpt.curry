@@ -3,22 +3,21 @@
 --- by equational constraints (which binds variables).
 ---
 --- @author Michael Hanus
---- @version October 2016
+--- @version October 2020
 -------------------------------------------------------------------------
 
 module BindingOpt (main, transformFlatProg) where
 
-import System.Directory   ( renameFile )
-import System.FilePath    ( (</>), (<.>), normalise, pathSeparator
-                          , takeExtension, dropExtension )
+import Language.Curry.Distribution ( installDir, curryCompiler )
+import System.Directory    ( renameFile )
+import System.FilePath     ( (</>), (<.>), normalise, pathSeparator
+                           , takeExtension, dropExtension )
+import System.Environment  ( getArgs )
+import System.Process      ( system, exitWith )
+import System.CPUTime      ( getCPUTime )
 import Data.List
-import Data.Maybe         (fromJust)
-import System.Process     ( system, exitWith )
-import System.Environment ( getArgs )
-import System.CPUTime     ( getCPUTime )
-import Distribution       ( installDir, curryCompiler, currySubdir
-                          , addCurrySubdir, splitModuleFileName )
-
+import Data.Maybe          ( fromJust )
+import Control.Monad       ( when, unless )
 import FlatCurry.Types hiding  (Cons)
 import FlatCurry.Files
 import FlatCurry.Goodies
@@ -27,6 +26,7 @@ import Analysis.Types
 import Analysis.ProgInfo
 import Analysis.RequiredValues
 import CASS.Server       ( analyzeGeneric, analyzePublic, analyzeInterface )
+import System.CurryPath  ( currySubdir, addCurrySubdir, splitModuleFileName )
 import Text.CSV
 
 
@@ -37,7 +37,7 @@ defaultOptions = (1, True, False)
 
 systemBanner :: String
 systemBanner =
-  let bannerText = "Curry Binding Optimizer (version of 20/10/2016)"
+  let bannerText = "Curry Binding Optimizer (version of 15/08/2018)"
       bannerLine = take (length bannerText) (repeat '=')
    in bannerLine ++ "\n" ++ bannerText ++ "\n" ++ bannerLine
 
@@ -78,7 +78,7 @@ checkArgs opts@(verbosity, withana, load) args = case args of
   "-?":_               -> putStr (systemBanner++'\n':usageComment)
   mods                 -> do
                           printVerbose verbosity 1 systemBanner
-                          mapIO_ (transformBoolEq opts) mods
+                          mapM_ (transformBoolEq opts) mods
 
 -- Verbosity level:
 -- 0 : show nothing
@@ -94,7 +94,7 @@ printVerbose verbosity printlevel message =
 
 transformBoolEq :: Options -> String -> IO ()
 transformBoolEq opts@(verb, _, _) name = do
-  let isfcyname = takeExtension name == "fcy"
+  let isfcyname = takeExtension name == ".fcy"
       modname   = if isfcyname
                   then modNameOfFcyName (normalise (dropExtension name))
                   else name
@@ -119,7 +119,7 @@ modNameOfFcyName name =
 transformAndStoreFlatProg :: Options -> String -> Prog -> IO ()
 transformAndStoreFlatProg opts@(verb, _, load) modname prog = do
   let (dir, name) = splitModuleFileName (progName prog) modname
-  let oldprogfile = normalise $ addCurrySubdir dir </>  name         <.> "fcy"
+      oldprogfile = normalise $ addCurrySubdir dir </>  name         <.> "fcy"
       newprogfile = normalise $ addCurrySubdir dir </>  name ++ "_O" <.> "fcy"
   starttime <- getCPUTime
   (newprog, transformed) <- transformFlatProg opts modname prog
@@ -131,7 +131,7 @@ transformAndStoreFlatProg opts@(verb, _, load) modname prog = do
     printVerbose verb 2 $ "Transformed program stored in " ++ newprogfile
     renameFile newprogfile oldprogfile
     printVerbose verb 2 $ " ...and moved to " ++ oldprogfile
-  when load $ system (curryComp ++ " :l " ++ modname) >> done
+  when load $ system (curryComp ++ " :l " ++ modname) >> return ()
  where curryComp = installDir </> "bin" </> curryCompiler
 
 -- Perform the binding optimization on a FlatCurry program.
@@ -162,11 +162,11 @@ transformFlatProg (verb, withanalysis, _) modname
     putStrLn ("Detailed statistics written to '" ++ csvfname ++"'")
   return (Prog mname imports tdecls newfdecls opdecls, numtrans > 0)
 
-loadAnalysisWithImports :: (Show a, Read a) => Analysis a -> String -> [String]
+loadAnalysisWithImports :: (Read a, Show a) => Analysis a -> String -> [String]
                         -> IO (ProgInfo a,ProgInfo a)
 loadAnalysisWithImports analysis modname imports = do
   maininfo <- analyzeGeneric analysis modname >>= return . either id error
-  impinfos <- mapIO (\m -> analyzePublic analysis m >>=
+  impinfos <- mapM (\m -> analyzePublic analysis m >>=
                                                      return . either id error)
                     imports
   return $ (maininfo, foldr1 combineProgInfo (maininfo:impinfos))
@@ -210,11 +210,11 @@ incOccNumber (TState qf on) = TState qf (on+1)
 --- values. If there is an occurrence of (e1==e2) where the value `True`
 --- is required, then this occurrence is replaced by
 ---
----     (e1=:=e2)
+---     (e1 =:= e2)
 ---
 --- Similarly, (e1/=e2) with required value `False` is replaced by
 ---
----     (not (e1=:=e2))
+---     (not (e1 =:= e2))
 
 transformRule :: (QName -> Maybe AFType) -> TState -> Rule -> (TState,Rule)
 transformRule _ tst (External s) = (tst, External s)
@@ -281,8 +281,8 @@ transformRule lookupreqinfo tstr (Rule args rhs) =
 -- The first argument is "==" (for checking equalities) or "/="
 -- (for checking disequalities).
 -- If type classes are present, a Boolean (dis)equality call can be
--- * an instance (dis)equality call: "_impl#==#Prelude.Eq#..." e1 e2
---   (where there can be an additional first argument for another Eq dict)
+-- * an instance (dis)equality call: "_impl#==#Prelude.Eq#..." ... e1 e2
+--   (where there can be additional arguments for other Eq dicts)
 -- * a class (dis)equality call: apply (apply ("==" [dict]) e1) e2
 --   (where dict is a dictionary parameter)
 -- * a default instance (dis)equality call:
@@ -291,9 +291,8 @@ checkBoolEqualCall :: String -> Expr -> Maybe [Expr]
 checkBoolEqualCall deq exp = case exp of
   Comb FuncCall qf es ->
     if isNotEqualInstanceFunc qf && length es > 1
-      then Just (if length es == 2
-                   then es
-                   else tail es) -- since first argument might be Eq dict.
+      then Just (drop (length es - 2) es)
+                -- drop possible Eq dictionary arguments
       else if qf == pre "apply"
              then case es of
                     [Comb FuncCall qfa [Comb FuncCall qfe [_],e1],e2] ->
