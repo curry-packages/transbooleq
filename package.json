@@ -1,6 +1,6 @@
 {
     "name": "transbooleq",
-    "version": "3.0.0",
+    "version": "3.1.0",
     "author": "Michael Hanus <mh@informatik.uni-kiel.de>",
     "synopsis": "A transformation tool to replace Boolean equalities by equational constraints",
     "category": [ "Analysis", "Optimization" ],
@@ -9,10 +9,13 @@
         "cass-analysis": ">= 3.0.0, < 4.0.0",
         "cass"         : ">= 3.0.0, < 4.0.0",
         "csv"          : ">= 3.0.0, < 4.0.0",
-        "flatcurry"    : ">= 3.0.0, < 4.0.0"
+        "directory"    : ">= 3.0.0, < 4.0.0",
+        "filepath"     : ">= 3.0.0, < 4.0.0",
+        "flatcurry"    : ">= 3.0.0, < 4.0.0",
+        "process"      : ">= 3.0.0, < 4.0.0"
     },
     "compilerCompatibility": {
-        "pakcs": ">= 3.0.0, < 4.0.0",
+        "pakcs": ">= 3.3.0, < 4.0.0",
         "kics2": ">= 3.0.0, < 4.0.0"
     },
     "executable": {
