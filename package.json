@@ -26,7 +26,7 @@
         "modules": [ "Expressions", "Grep", "Half", "Last", "Various" ]
     },
      "source": {
-        "git": "https://git.ps.informatik.uni-kiel.de/curry-packages/transbooleq.git",
+        "git": "https://github.com/curry-packages/transbooleq.git",
         "tag": "$version"
     }
 }
